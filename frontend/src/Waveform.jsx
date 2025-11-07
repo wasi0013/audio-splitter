@@ -25,7 +25,13 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
       media: audioRef?.current  // Use the external audio element
     })
 
-    waveSurfer.load(audioUrl)
+    waveSurfer.load(audioUrl).catch((error) => {
+      // Suppress AbortError - this happens when audio loading is interrupted
+      // (e.g., user changes file before previous load completes)
+      if (error?.name !== 'AbortError') {
+        console.error('Error loading audio:', error)
+      }
+    })
 
     waveSurfer.on('ready', () => {
       waveSurferRef.current = waveSurfer
