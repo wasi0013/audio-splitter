@@ -143,8 +143,6 @@ function App() {
       a.href = url
       a.download = 'audio-segments.zip'
       a.click()
-      
-      alert(`Split complete! ${markers.length + 1} segments created and downloaded.`)
     } catch (error) {
       console.error('Split error:', error)
       alert('Error: ' + error.message)
@@ -244,12 +242,21 @@ function App() {
                 src={audioUrl}
                 className="audio-player"
               />
-              <button 
-                onClick={handleAddMarker}
-                className="btn btn-primary"
-              >
-                + Add Marker
-              </button>
+              <div className="footer-buttons">
+                <button 
+                  onClick={handleAddMarker}
+                  className="btn btn-primary"
+                >
+                  + Add Marker
+                </button>
+                <button 
+                  onClick={handleSplit}
+                  disabled={isLoading || markers.length === 0}
+                  className="btn btn-success"
+                >
+                  {isLoading ? 'Processing...' : `Split (${markers.length + 1})`}
+                </button>
+              </div>
             </div>
           </section>
 
@@ -334,15 +341,6 @@ function App() {
             )}
           </section>
 
-          <section className="actions-section">
-            <button 
-              onClick={handleSplit}
-              disabled={isLoading || markers.length === 0}
-              className="btn btn-success btn-large"
-            >
-              {isLoading ? 'Processing...' : `Split into ${markers.length + 1} segments`}
-            </button>
-          </section>
         </>
       )}
     </div>
