@@ -1,4 +1,4 @@
-<img src="extra/audiosplitter.png" alt="Audio splitter" width=500>
+<p align='center'><img src="extra/audiosplitter.png" alt="Audio splitter" width=500></p>
 
 # Audio Splitter
 
