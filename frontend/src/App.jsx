@@ -224,24 +224,9 @@ function App() {
 
       {audioFile && (
         <>
-          <section className="player-section">
-            <audio 
-              ref={audioRef}
-              controls
-              src={audioUrl}
-              className="audio-player"
-            />
-          </section>
-
           <section className="waveform-section">
             <div className="waveform-header">
               <h3>Timeline - Click to place markers</h3>
-              <button 
-                onClick={handleAddMarker}
-                className="btn btn-primary"
-              >
-                + Add Marker
-              </button>
             </div>
             <Waveform 
               audioUrl={audioUrl}
@@ -252,6 +237,20 @@ function App() {
               onMarkerClick={handleWaveformClick}
               onPreviewEnd={() => setPreviewSegment(null)}
             />
+            <div className="waveform-footer">
+              <audio 
+                ref={audioRef}
+                controls
+                src={audioUrl}
+                className="audio-player"
+              />
+              <button 
+                onClick={handleAddMarker}
+                className="btn btn-primary"
+              >
+                + Add Marker
+              </button>
+            </div>
           </section>
 
           <section className="markers-section">

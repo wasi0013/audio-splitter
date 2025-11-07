@@ -119,15 +119,6 @@ section:last-child {
   font-weight: 500;
 }
 
-.player-section {
-  background: #f8f9fa;
-}
-
-.audio-player {
-  width: 100%;
-  height: 40px;
-}
-
 .waveform-section {
   background: #fafbfc;
 }
@@ -155,6 +146,20 @@ section:last-child {
 .waveform-canvas {
   width: 100%;
   height: 100%;
+}
+
+.waveform-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 0 0;
+}
+
+.audio-player {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid #e5e7eb;
 }
 
 .markers-overlay {
