@@ -1,3 +1,5 @@
+<img src="extra/audiosplitter.png" alt="Audio splitter" width=500>
+
 # Audio Splitter
 
 A minimal, elegant audio splicing tool for MP3 files. Load an MP3, place markers at split points, and download lossless audio segments with a single click.
