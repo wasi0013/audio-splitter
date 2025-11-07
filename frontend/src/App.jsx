@@ -158,6 +158,62 @@ function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const formatTimeForInput = (seconds) => {
+    if (!seconds) return '0:00:00'
+    const hrs = Math.floor(seconds / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
+    const secs = Math.floor(seconds % 60)
+    const ms = Math.floor((seconds % 1) * 1000)
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`
+  }
+
+  const parseTimeInput = (timeStr) => {
+    // Parse format: H:MM:SS.ms or MM:SS or MM:SS.ms
+    const parts = timeStr.trim().split(':')
+    if (parts.length < 2 || parts.length > 3) return null
+    
+    try {
+      let totalSeconds = 0
+      
+      if (parts.length === 2) {
+        // MM:SS.ms format
+        const [minPart, secPart] = parts
+        const mins = parseInt(minPart)
+        const [secsStr, msStr] = secPart.split('.')
+        const secs = parseInt(secsStr)
+        const ms = msStr ? parseInt(msStr.padEnd(3, '0').substring(0, 3)) : 0
+        totalSeconds = mins * 60 + secs + ms / 1000
+      } else {
+        // H:MM:SS.ms format
+        const [hrPart, minPart, secPart] = parts
+        const hrs = parseInt(hrPart)
+        const mins = parseInt(minPart)
+        const [secsStr, msStr] = secPart.split('.')
+        const secs = parseInt(secsStr)
+        const ms = msStr ? parseInt(msStr.padEnd(3, '0').substring(0, 3)) : 0
+        totalSeconds = hrs * 3600 + mins * 60 + secs + ms / 1000
+      }
+      
+      return totalSeconds >= 0 ? totalSeconds : null
+    } catch (e) {
+      return null
+    }
+  }
+
+  const handleUpdateMarkerTime = (markerId, newTimeStr) => {
+    const newTime = parseTimeInput(newTimeStr)
+    if (newTime !== null && newTime >= 0) {
+      setMarkers(markers.map(m => 
+        m.id === markerId ? { ...m, time: newTime } : m
+      ).sort((a, b) => a.time - b.time))
+      
+      // Seek to new marker position for preview
+      if (waveSurferRef.current) {
+        waveSurferRef.current.seekTo(newTime / waveSurferRef.current.getDuration())
+      }
+    }
+  }
+
   return (
     <div className="container">
       <header className="header">
@@ -269,7 +325,14 @@ function App() {
                 {markers.map((marker, idx) => (
                   <div key={marker.id} className="marker-item">
                     <span className="marker-number">#{idx + 1}</span>
-                    <span className="marker-time">{formatTime(marker.time)}s</span>
+                    <input 
+                      type="text"
+                      className="marker-time-input"
+                      value={formatTimeForInput(marker.time)}
+                      onChange={(e) => handleUpdateMarkerTime(marker.id, e.target.value)}
+                      placeholder="H:MM:SS.ms"
+                      title="Edit marker time (H:MM:SS.ms or MM:SS.ms)"
+                    />
                     <button 
                       onClick={() => handleRemoveMarker(marker.id)}
                       className="btn btn-small btn-danger"

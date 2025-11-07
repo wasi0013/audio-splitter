@@ -276,6 +276,29 @@ section:last-child {
   font-size: 13px;
 }
 
+.marker-time-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-weight: 500;
+  color: #1f2937;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.marker-time-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.marker-time-input:hover {
+  border-color: #667eea;
+}
+
 .segments-section {
   background: linear-gradient(135deg, rgba(2, 132, 199, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%);
   border-top: 2px solid #e5e7eb;
