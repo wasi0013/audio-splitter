@@ -21,7 +21,8 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
       normalize: true,
       responsive: true,
       cursorColor: '#e74c3c',
-      cursorWidth: 2
+      cursorWidth: 2,
+      media: audioRef?.current  // Use the external audio element
     })
 
     waveSurfer.load(audioUrl)
@@ -78,9 +79,12 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
 
   // Monitor preview segment playback
   useEffect(() => {
-    if (!previewSegment || !waveSurferRef.current) return
+    if (!previewSegment || !waveSurferRef.current) {
+      return
+    }
 
     const waveSurfer = waveSurferRef.current
+    
     const checkPreviewEnd = () => {
       const currentTime = waveSurfer.getCurrentTime()
       if (currentTime >= previewSegment.endTime) {

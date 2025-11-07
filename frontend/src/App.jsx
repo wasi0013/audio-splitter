@@ -75,16 +75,42 @@ function App() {
   }
 
   const handlePreviewSegment = (segmentIndex) => {
-    if (!waveSurferRef.current) return
+    if (!waveSurferRef.current) {
+      return
+    }
     
-    const timePoints = [0, ...markers.map(m => m.time).sort((a, b) => a - b)]
-    const startTime = timePoints[segmentIndex]
-    const endTime = segmentIndex + 1 < timePoints.length ? timePoints[segmentIndex + 1] : waveSurferRef.current.getDuration()
+    const sortedMarkers = markers.map(m => m.time).sort((a, b) => a - b)
+    let startTime, endTime
+    
+    if (segmentIndex === 0) {
+      // First segment: 0 to first marker
+      startTime = 0
+      endTime = sortedMarkers.length > 0 ? sortedMarkers[0] : waveSurferRef.current.getDuration()
+    } else if (segmentIndex <= sortedMarkers.length) {
+      // Middle segments
+      startTime = sortedMarkers[segmentIndex - 1]
+      endTime = segmentIndex < sortedMarkers.length ? sortedMarkers[segmentIndex] : waveSurferRef.current.getDuration()
+    } else {
+      return
+    }
 
     setPreviewSegment({ startTime, endTime, segmentIndex })
     
-    waveSurferRef.current.seekTo(startTime / waveSurferRef.current.getDuration())
-    waveSurferRef.current.play()
+    const duration = waveSurferRef.current.getDuration()
+    const seekRatio = startTime / duration
+    
+    // Seek to start position
+    waveSurferRef.current.seekTo(seekRatio)
+    
+    // Small delay to ensure seek is applied before play
+    setTimeout(() => {
+      const playPromise = waveSurferRef.current.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.error('Play failed:', err)
+        })
+      }
+    }, 50)
   }
 
   const handleSplit = async () => {
@@ -257,15 +283,29 @@ function App() {
                 <p className="empty-state">Add markers to see segments</p>
               ) : (
                 <>
+                  {/* First segment: 0 to first marker */}
+                  <div className="segment-item">
+                    <span className="segment-label">Segment 000</span>
+                    <span className="segment-time">0:00 → {formatTime(markers[0].time)}</span>
+                    <button
+                      onClick={() => handlePreviewSegment(0)}
+                      className="btn btn-small btn-info"
+                    >
+                      ▶ Preview
+                    </button>
+                  </div>
+
+                  {/* Middle segments */}
                   {markers.map((marker, idx) => {
-                    const startTime = idx === 0 ? 0 : markers[idx - 1].time
-                    const endTime = marker.time
+                    if (idx === markers.length - 1) return null // Skip last, it's handled below
+                    const startTime = marker.time
+                    const endTime = markers[idx + 1].time
                     return (
-                      <div key={`seg-${idx}`} className="segment-item">
-                        <span className="segment-label">Segment {idx + 1}</span>
+                      <div key={`seg-${idx + 1}`} className="segment-item">
+                        <span className="segment-label">Segment {String(idx + 1).padStart(3, '0')}</span>
                         <span className="segment-time">{formatTime(startTime)} → {formatTime(endTime)}</span>
                         <button
-                          onClick={() => handlePreviewSegment(idx)}
+                          onClick={() => handlePreviewSegment(idx + 1)}
                           className="btn btn-small btn-info"
                         >
                           ▶ Preview
@@ -273,8 +313,10 @@ function App() {
                       </div>
                     )
                   })}
+
+                  {/* Last segment */}
                   <div className="segment-item">
-                    <span className="segment-label">Segment {markers.length + 1}</span>
+                    <span className="segment-label">Segment {String(markers.length).padStart(3, '0')}</span>
                     <span className="segment-time">{formatTime(markers[markers.length - 1].time)} → End</span>
                     <button
                       onClick={() => handlePreviewSegment(markers.length)}
