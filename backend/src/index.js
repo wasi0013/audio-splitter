@@ -39,7 +39,7 @@ async function splitAudioFile(inputPath, timestamps, originalFileName) {
       const startTime = timePoints[i]
       const endTime = i + 1 < timePoints.length ? timePoints[i + 1] : null
 
-      const segmentNum = i + 1
+      const segmentNum = i
       const outputFileName = `${inputFileName}${String(segmentNum).padStart(3, '0')}.mp3`
       const outputPath = path.join(tempSegmentsDir, outputFileName)
 
