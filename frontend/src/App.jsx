@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Waveform } from './Waveform'
+import { initFFmpeg, splitAudio, isFFmpegReady } from './lib/ffmpegProcessor'
+import { createZipFromSegments, downloadFile } from './lib/zipUtils'
 import './App.css'
 
 function App() {
@@ -8,44 +10,53 @@ function App() {
   const [markers, setMarkers] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [previewSegment, setPreviewSegment] = useState(null)
-  const [bulkFiles, setBulkFiles] = useState([])
-  const [selectedBulkFile, setSelectedBulkFile] = useState(null)
+  const [ffmpegStatus, setFFmpegStatus] = useState('Loading FFmpeg...')
+  const [ffmpegInitialized, setFFmpegInitialized] = useState(false)
+  const [progress, setProgress] = useState(null)
   const audioRef = useRef(null)
   const waveSurferRef = useRef(null)
 
+  // Initialize FFmpeg on component mount
+  useEffect(() => {
+    const initializeFFmpeg = async () => {
+      try {
+        setFFmpegStatus('Initializing FFmpeg...')
+        await initFFmpeg((progressUpdate) => {
+          console.log('Progress:', progressUpdate)
+        })
+        setFFmpegInitialized(true)
+        setFFmpegStatus('Ready')
+      } catch (error) {
+        console.error('Failed to initialize FFmpeg:', error)
+        setFFmpegStatus(`Error: ${error.message}`)
+      }
+    }
+
+    initializeFFmpeg()
+  }, [])
+
+  // Check if file is an audio file
+  const isAudioFile = (file) => {
+    const audioMimeTypes = [
+      'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/wave',
+      'audio/ogg', 'audio/flac', 'audio/aac', 'audio/x-aac',
+      'audio/m4a', 'audio/mp4', 'audio/x-m4a'
+    ]
+    const audioExtensions = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.mp4']
+    
+    return audioMimeTypes.includes(file.type) || 
+           audioExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+  }
+
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0]
-    if (file && file.type === 'audio/mpeg') {
+    if (file && isAudioFile(file)) {
       setAudioFile(file)
       setAudioUrl(URL.createObjectURL(file))
       setMarkers([])
-      setBulkFiles([])
-      setSelectedBulkFile(null)
+    } else if (file) {
+      alert('Please select a valid audio file (MP3, WAV, OGG, FLAC, AAC, M4A)')
     }
-  }
-
-  const handleFolderUpload = (e) => {
-    const files = Array.from(e.target.files || [])
-    const mp3Files = files.filter(f => f.type === 'audio/mpeg' || f.name.endsWith('.mp3'))
-    
-    if (mp3Files.length > 0) {
-      // Sort files alphabetically by name
-      mp3Files.sort((a, b) => a.name.localeCompare(b.name))
-      setBulkFiles(mp3Files)
-      setSelectedBulkFile(null)
-      setAudioFile(null)
-      setAudioUrl(null)
-      setMarkers([])
-    } else {
-      alert('No MP3 files found in selection')
-    }
-  }
-
-  const handleSelectBulkFile = (file) => {
-    setSelectedBulkFile(file)
-    setAudioFile(file)
-    setAudioUrl(URL.createObjectURL(file))
-    setMarkers([])
   }
 
   const handleWaveformReady = (waveSurfer) => {
@@ -119,32 +130,44 @@ function App() {
       return
     }
 
+    if (!ffmpegInitialized) {
+      alert('FFmpeg is still loading. Please wait.')
+      return
+    }
+
     setIsLoading(true)
+    setProgress({ status: 'Starting...', current: 0, total: 0 })
+    
     try {
-      const formData = new FormData()
-      formData.append('file', audioFile)
-      formData.append('markers', JSON.stringify(markers.map(m => m.time)))
+      const markerTimes = markers.map(m => m.time)
+      
+      console.log('Starting audio split with markers:', markerTimes)
+      setProgress({ status: 'Processing audio segments...' })
 
-      console.log('Sending split request with markers:', markers.map(m => m.time))
-
-      const response = await fetch('/api/split', {
-        method: 'POST',
-        body: formData
+      // Split audio using FFmpeg
+      const segments = await splitAudio(audioFile, markerTimes, (update) => {
+        setProgress(update)
+        console.log('Split progress:', update)
       })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Split failed')
-      }
+      setProgress({ status: 'Creating ZIP file...' })
 
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'audio-segments.zip'
-      a.click()
+      // Create ZIP with segments
+      const baseFileName = audioFile.name.replace(/\.[^.]+$/, '')
+      const zipBlob = await createZipFromSegments(segments, baseFileName)
+
+      setProgress({ status: 'Downloading...' })
+
+      // Download the ZIP file
+      downloadFile(zipBlob, `${baseFileName}.zip`)
+
+      setProgress({ status: 'Complete!' })
+      setTimeout(() => setProgress(null), 2000)
+
+      console.log('Split completed successfully')
     } catch (error) {
       console.error('Split error:', error)
+      setProgress(null)
       alert('Error: ' + error.message)
     } finally {
       setIsLoading(false)
@@ -219,6 +242,13 @@ function App() {
       <header className="header">
         <h1>Audio Splitter</h1>
         <p className="subtitle">Load MP3, place markers, split into segments</p>
+        <div className="ffmpeg-status">
+          {ffmpegInitialized ? (
+            <span className="status-badge status-ready">✓ Ready</span>
+          ) : (
+            <span className="status-badge status-loading">⏳ {ffmpegStatus}</span>
+          )}
+        </div>
       </header>
 
       <section className="upload-section">
@@ -226,53 +256,18 @@ function App() {
           <label className="file-input-label">
             <input 
               type="file" 
-              accept="audio/mpeg" 
+              accept="audio/*"
               onChange={handleFileUpload}
               className="file-input"
             />
             <span className="file-input-text">
-              📁 Single File
-            </span>
-          </label>
-
-          <label className="file-input-label">
-            <input 
-              type="file" 
-              webkitdirectory="true"
-              mozdirectory="true"
-              onChange={handleFolderUpload}
-              className="file-input"
-            />
-            <span className="file-input-text">
-              📂 Bulk Folder
+              🎵 Load Audio
             </span>
           </label>
         </div>
 
-        {audioFile && !bulkFiles.length && (
+        {audioFile && (
           <p className="file-info">Loaded: {audioFile.name}</p>
-        )}
-
-        {bulkFiles.length > 0 && (
-          <div className="bulk-selector">
-            <label>Select file from folder:</label>
-            <select 
-              value={selectedBulkFile ? bulkFiles.indexOf(selectedBulkFile) : ''}
-              onChange={(e) => {
-                const idx = parseInt(e.target.value)
-                handleSelectBulkFile(bulkFiles[idx])
-              }}
-              className="bulk-dropdown"
-            >
-              <option value="">-- Choose a file --</option>
-              {bulkFiles.map((file, idx) => (
-                <option key={idx} value={idx}>
-                  {file.name}
-                </option>
-              ))}
-            </select>
-            <span className="bulk-count">({bulkFiles.length} files)</span>
-          </div>
         )}
       </section>
 
@@ -307,12 +302,25 @@ function App() {
                 </button>
                 <button 
                   onClick={handleSplit}
-                  disabled={isLoading || markers.length === 0}
+                  disabled={isLoading || markers.length === 0 || !ffmpegInitialized}
                   className="btn btn-success"
                 >
-                  {isLoading ? 'Processing...' : `Split (${markers.length + 1})`}
+                  {isLoading ? `${progress?.status || 'Processing...'}` : `Split (${markers.length + 1})`}
                 </button>
               </div>
+              {progress && (
+                <div className="progress-info">
+                  <div className="progress-status">{progress.status}</div>
+                  {progress.total > 0 && (
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
