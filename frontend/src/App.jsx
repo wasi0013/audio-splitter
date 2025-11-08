@@ -15,6 +15,7 @@ function App() {
   const [progress, setProgress] = useState(null)
   const audioRef = useRef(null)
   const waveSurferRef = useRef(null)
+  const previousAudioUrlRef = useRef(null)
 
   // Initialize FFmpeg on component mount
   useEffect(() => {
@@ -35,6 +36,41 @@ function App() {
     initializeFFmpeg()
   }, [])
 
+  // Update audio element when URL changes
+  useEffect(() => {
+    if (audioRef.current && audioUrl) {
+      audioRef.current.src = audioUrl
+      audioRef.current.load()
+    }
+  }, [audioUrl])
+
+  // Revoke old blob URL after new one is loaded
+  useEffect(() => {
+    // Revoke the previous blob URL after a small delay to ensure it's no longer needed
+    if (previousAudioUrlRef.current && previousAudioUrlRef.current !== audioUrl) {
+      setTimeout(() => {
+        URL.revokeObjectURL(previousAudioUrlRef.current)
+      }, 100)
+    }
+    // Update the ref to current URL
+    previousAudioUrlRef.current = audioUrl
+  }, [audioUrl])
+
+  // Cleanup audio resources on component unmount
+  useEffect(() => {
+    return () => {
+      // Revoke the current blob URL
+      if (previousAudioUrlRef.current) {
+        URL.revokeObjectURL(previousAudioUrlRef.current)
+      }
+      // Stop audio playback
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+      }
+    }
+  }, [])
+
   // Check if file is an audio file
   const isAudioFile = (file) => {
     const audioMimeTypes = [
@@ -51,11 +87,32 @@ function App() {
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0]
     if (file && isAudioFile(file)) {
+      // Stop audio playback before loading new file
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+        // Hard reset the media element to drop any stale source
+        try {
+          audioRef.current.removeAttribute('src')
+        } catch (__) {}
+        audioRef.current.load()
+      }
+
+      // Clear preview state
+      setPreviewSegment(null)
+
+      // Load new file (old blob URL will be revoked automatically by useEffect)
+      const nextUrl = URL.createObjectURL(file)
       setAudioFile(file)
-      setAudioUrl(URL.createObjectURL(file))
+      setAudioUrl(nextUrl)
       setMarkers([])
+      
+      // Reset file input to allow loading same file again
+      e.target.value = ''
     } else if (file) {
       alert('Please select a valid audio file (MP3, WAV, OGG, FLAC, AAC, M4A)')
+      // Reset file input
+      e.target.value = ''
     }
   }
 
@@ -278,6 +335,7 @@ function App() {
               <h3>Timeline - Click to place markers</h3>
             </div>
             <Waveform 
+              key={audioUrl || 'waveform-empty'}
               audioUrl={audioUrl}
               audioRef={audioRef}
               markers={markers}
@@ -288,6 +346,7 @@ function App() {
             />
             <div className="waveform-footer">
               <audio 
+                key={audioUrl || 'audio-empty'}
                 ref={audioRef}
                 controls
                 src={audioUrl}
