@@ -7,8 +7,18 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
   const markersCanvasRef = useRef(null)
   const previewIntervalRef = useRef(null)
 
+  // Store callbacks in refs so the main effect doesn't re-run when they change
+  const onReadyRef = useRef(onReady)
+  const onMarkerClickRef = useRef(onMarkerClick)
+  const onPreviewEndRef = useRef(onPreviewEnd)
+  useEffect(() => { onReadyRef.current = onReady }, [onReady])
+  useEffect(() => { onMarkerClickRef.current = onMarkerClick }, [onMarkerClick])
+  useEffect(() => { onPreviewEndRef.current = onPreviewEnd }, [onPreviewEnd])
+
   useEffect(() => {
     if (!audioUrl || !containerRef.current) return
+
+    const containerHeight = containerRef.current.clientHeight || 150
 
     const waveSurfer = WaveSurfer.create({
       container: containerRef.current,
@@ -17,7 +27,7 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
       barWidth: 2,
       barRadius: 2,
       barGap: 2,
-      height: 150,
+      height: containerHeight,
       normalize: true,
       responsive: true,
       cursorColor: '#e74c3c',
@@ -35,13 +45,13 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
 
     waveSurfer.on('ready', () => {
       waveSurferRef.current = waveSurfer
-      if (onReady) onReady(waveSurfer)
+      if (onReadyRef.current) onReadyRef.current(waveSurfer)
     })
 
     waveSurfer.on('click', (relativeX) => {
       const duration = waveSurfer.getDuration()
       const clickedTime = relativeX * duration
-      if (onMarkerClick) onMarkerClick(clickedTime)
+      if (onMarkerClickRef.current) onMarkerClickRef.current(clickedTime)
     })
 
     // Sync wavesurfer playback with audio element
@@ -75,13 +85,14 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
       if (audioRef?.current) {
         audioRef.current.removeEventListener('timeupdate', handleTimeUpdate)
       }
+      waveSurferRef.current = null
       try {
         waveSurfer.destroy()
       } catch (e) {
         // Ignore destroy errors in development
       }
     }
-  }, [audioUrl, onReady, onMarkerClick, audioRef])
+  }, [audioUrl])
 
   // Monitor preview segment playback
   useEffect(() => {
@@ -92,10 +103,16 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
     const waveSurfer = waveSurferRef.current
     
     const checkPreviewEnd = () => {
-      const currentTime = waveSurfer.getCurrentTime()
-      if (currentTime >= previewSegment.endTime) {
-        waveSurfer.pause()
-        if (onPreviewEnd) onPreviewEnd()
+      if (!waveSurferRef.current) return
+      try {
+        const currentTime = waveSurfer.getCurrentTime()
+        if (currentTime >= previewSegment.endTime) {
+          waveSurfer.pause()
+          if (onPreviewEndRef.current) onPreviewEndRef.current()
+        }
+      } catch (e) {
+        // WaveSurfer may have been destroyed
+        if (previewIntervalRef.current) clearInterval(previewIntervalRef.current)
       }
     }
 
@@ -106,7 +123,7 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
         clearInterval(previewIntervalRef.current)
       }
     }
-  }, [previewSegment, onPreviewEnd])
+  }, [previewSegment])
 
   // Draw markers on canvas overlay
   useEffect(() => {
@@ -120,7 +137,7 @@ export function Waveform({ audioUrl, audioRef, markers, previewSegment, onReady,
 
     const rect = canvas.parentElement.getBoundingClientRect()
     canvas.width = rect.width
-    canvas.height = 150
+    canvas.height = rect.height
 
     const ctx = canvas.getContext('2d')
     ctx.clearRect(0, 0, canvas.width, canvas.height)

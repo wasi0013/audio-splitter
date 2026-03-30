@@ -36,6 +36,27 @@ function App() {
     initializeFFmpeg()
   }, [])
 
+  // Generate a storage key for the current audio file
+  const getStorageKey = (file) => {
+    if (!file) return null
+    return `audio-splitter-markers:${file.name}:${file.size}`
+  }
+
+  // Save markers to localStorage whenever they change
+  useEffect(() => {
+    const key = getStorageKey(audioFile)
+    if (!key) return
+    if (markers.length === 0) {
+      localStorage.removeItem(key)
+    } else {
+      try {
+        localStorage.setItem(key, JSON.stringify(markers))
+      } catch (e) {
+        console.warn('Failed to save markers to localStorage:', e)
+      }
+    }
+  }, [markers, audioFile])
+
   // Update audio element when URL changes
   useEffect(() => {
     if (audioRef.current && audioUrl) {
@@ -105,7 +126,29 @@ function App() {
       const nextUrl = URL.createObjectURL(file)
       setAudioFile(file)
       setAudioUrl(nextUrl)
-      setMarkers([])
+
+      // Restore markers from localStorage if available
+      const key = getStorageKey(file)
+      if (key) {
+        try {
+          const saved = localStorage.getItem(key)
+          if (saved) {
+            const restored = JSON.parse(saved)
+            if (Array.isArray(restored) && restored.length > 0) {
+              setMarkers(restored)
+            } else {
+              setMarkers([])
+            }
+          } else {
+            setMarkers([])
+          }
+        } catch (e) {
+          console.warn('Failed to restore markers from localStorage:', e)
+          setMarkers([])
+        }
+      } else {
+        setMarkers([])
+      }
       
       // Reset file input to allow loading same file again
       e.target.value = ''
@@ -142,8 +185,10 @@ function App() {
     setMarkers(markers.filter(m => m.id !== id))
   }
 
-  const handlePreviewSegment = (segmentIndex) => {
-    if (!waveSurferRef.current) {
+  const isPreviewingRef = useRef(false)
+
+  const handlePreviewSegment = async (segmentIndex) => {
+    if (!waveSurferRef.current || isPreviewingRef.current) {
       return
     }
     
@@ -162,6 +207,13 @@ function App() {
       return
     }
 
+    isPreviewingRef.current = true
+
+    // Pause any current playback first
+    try {
+      waveSurferRef.current.pause()
+    } catch (e) { /* ignore */ }
+
     setPreviewSegment({ startTime, endTime, segmentIndex })
     
     const duration = waveSurferRef.current.getDuration()
@@ -172,13 +224,30 @@ function App() {
     
     // Small delay to ensure seek is applied before play
     setTimeout(() => {
-      const playPromise = waveSurferRef.current.play()
-      if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          console.error('Play failed:', err)
-        })
+      if (!waveSurferRef.current) {
+        isPreviewingRef.current = false
+        return
       }
-    }, 50)
+      try {
+        const playPromise = waveSurferRef.current.play()
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.error('Play failed:', err)
+          }).finally(() => {
+            isPreviewingRef.current = false
+          })
+        } else {
+          isPreviewingRef.current = false
+        }
+      } catch (e) {
+        isPreviewingRef.current = false
+      }
+    }, 100)
+  }
+
+  const handleSeek = (seconds) => {
+    if (!waveSurferRef.current) return
+    waveSurferRef.current.skip(seconds)
   }
 
   const handleSplit = async () => {
@@ -294,6 +363,29 @@ function App() {
     }
   }
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger shortcuts when typing in inputs
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
+
+      if (e.code === 'Space' && waveSurferRef.current) {
+        e.preventDefault()
+        waveSurferRef.current.playPause()
+      } else if (e.code === 'KeyM' && waveSurferRef.current) {
+        e.preventDefault()
+        handleAddMarker()
+      } else if (e.code === 'Escape' && previewSegment) {
+        e.preventDefault()
+        if (waveSurferRef.current) waveSurferRef.current.pause()
+        setPreviewSegment(null)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [previewSegment])
+
   return (
     <div className="container">
       <header className="header">
@@ -352,6 +444,12 @@ function App() {
                 src={audioUrl}
                 className="audio-player"
               />
+              <div className="seek-buttons">
+                <button onClick={() => handleSeek(-30)} className="btn btn-small btn-seek" title="Back 30s">⏪ 30s</button>
+                <button onClick={() => handleSeek(-5)} className="btn btn-small btn-seek" title="Back 5s">⏪ 5s</button>
+                <button onClick={() => handleSeek(5)} className="btn btn-small btn-seek" title="Forward 5s">5s ⏩</button>
+                <button onClick={() => handleSeek(30)} className="btn btn-small btn-seek" title="Forward 30s">30s ⏩</button>
+              </div>
               <div className="footer-buttons">
                 <button 
                   onClick={handleAddMarker}
@@ -383,6 +481,7 @@ function App() {
             </div>
           </section>
 
+          <div className="markers-segments-columns">
           <section className="markers-section">
             <h3>Markers ({markers.length})</h3>
             {markers.length === 0 ? (
@@ -395,6 +494,8 @@ function App() {
                     <input 
                       type="text"
                       className="marker-time-input"
+                      inputMode="decimal"
+                      autoComplete="off"
                       value={formatTimeForInput(marker.time)}
                       onChange={(e) => handleUpdateMarkerTime(marker.id, e.target.value)}
                       placeholder="H:MM:SS.ms"
@@ -470,6 +571,7 @@ function App() {
               </div>
             )}
           </section>
+          </div>
 
         </>
       )}
@@ -496,6 +598,9 @@ function App() {
             </div>
             <div className="tutorial-tip">
               💡 <strong>Tip:</strong> Processing happens in your browser - no uploads to servers. Audio quality is preserved (lossless codec copying).
+            </div>
+            <div className="tutorial-tip keyboard-shortcuts">
+              ⌨️ <strong>Keyboard Shortcuts:</strong> <kbd>Space</kbd> Play/Pause · <kbd>M</kbd> Add Marker · <kbd>Esc</kbd> Stop Preview
             </div>
           </div>
         </details>
