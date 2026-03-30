@@ -13,6 +13,15 @@ function App() {
   const [ffmpegStatus, setFFmpegStatus] = useState('Loading FFmpeg...')
   const [ffmpegInitialized, setFFmpegInitialized] = useState(false)
   const [progress, setProgress] = useState(null)
+  const [namingConfig, setNamingConfig] = useState({
+    prependText: '',
+    prependCounter: '',
+    prependCounterDigits: 3,
+    name: '',
+    appendText: '',
+    appendCounter: '0',
+    appendCounterDigits: 3,
+  })
   const audioRef = useRef(null)
   const waveSurferRef = useRef(null)
   const previousAudioUrlRef = useRef(null)
@@ -276,6 +285,11 @@ function App() {
         console.log('Split progress:', update)
       })
 
+      // Rename segments using naming config
+      segments.forEach((seg, i) => {
+        seg.name = generateSegmentName(i)
+      })
+
       setProgress({ status: 'Creating ZIP file...' })
 
       // Create ZIP with segments
@@ -298,6 +312,34 @@ function App() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const getFileExtension = () => {
+    if (!audioFile) return '.mp3'
+    const match = audioFile.name.match(/\.[^.]+$/)
+    return match ? match[0] : '.mp3'
+  }
+
+  const generateSegmentName = (index) => {
+    const ext = getFileExtension()
+    const parts = []
+    parts.push(namingConfig.prependText)
+    if (namingConfig.prependCounter !== '') {
+      const counterVal = (parseInt(namingConfig.prependCounter, 10) || 0) + index
+      parts.push(String(counterVal).padStart(namingConfig.prependCounterDigits, '0'))
+    }
+    const baseName = namingConfig.name || (audioFile ? audioFile.name.replace(/\.[^.]+$/, '') : 'segment')
+    parts.push(baseName)
+    parts.push(namingConfig.appendText)
+    if (namingConfig.appendCounter !== '') {
+      const counterVal = (parseInt(namingConfig.appendCounter, 10) || 0) + index
+      parts.push(String(counterVal).padStart(namingConfig.appendCounterDigits, '0'))
+    }
+    return parts.join('') + ext
+  }
+
+  const updateNamingField = (field, value) => {
+    setNamingConfig(prev => ({ ...prev, [field]: value }))
   }
 
   const formatTime = (seconds) => {
@@ -574,6 +616,102 @@ function App() {
             )}
           </section>
           </div>
+
+          <section className="naming-section">
+            <details>
+              <summary>🏷️ Segment Naming</summary>
+              <div className="naming-content">
+                <div className="naming-preview">
+                  <strong>Preview:</strong>{' '}
+                  <code>{generateSegmentName(0)}</code>
+                  {markers.length > 0 && (
+                    <>
+                      {' → ... → '}
+                      <code>{generateSegmentName(markers.length)}</code>
+                    </>
+                  )}
+                </div>
+                <div className="naming-fields">
+                  <div className="naming-group">
+                    <h4>Prepend</h4>
+                    <label>
+                      Text
+                      <input
+                        type="text"
+                        value={namingConfig.prependText}
+                        onChange={(e) => updateNamingField('prependText', e.target.value)}
+                        placeholder="e.g. page"
+                      />
+                    </label>
+                    <label>
+                      Counter Start
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={namingConfig.prependCounter}
+                        onChange={(e) => updateNamingField('prependCounter', e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="empty = off"
+                      />
+                    </label>
+                    <label>
+                      Counter Digits
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={namingConfig.prependCounterDigits}
+                        onChange={(e) => updateNamingField('prependCounterDigits', Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                      />
+                    </label>
+                  </div>
+                  <div className="naming-group">
+                    <h4>Base Name</h4>
+                    <label>
+                      Name
+                      <input
+                        type="text"
+                        value={namingConfig.name}
+                        onChange={(e) => updateNamingField('name', e.target.value)}
+                        placeholder={audioFile ? audioFile.name.replace(/\.[^.]+$/, '') : 'filename'}
+                      />
+                    </label>
+                  </div>
+                  <div className="naming-group">
+                    <h4>Append</h4>
+                    <label>
+                      Text
+                      <input
+                        type="text"
+                        value={namingConfig.appendText}
+                        onChange={(e) => updateNamingField('appendText', e.target.value)}
+                        placeholder="e.g. _part"
+                      />
+                    </label>
+                    <label>
+                      Counter Start
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={namingConfig.appendCounter}
+                        onChange={(e) => updateNamingField('appendCounter', e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="empty = off"
+                      />
+                    </label>
+                    <label>
+                      Counter Digits
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={namingConfig.appendCounterDigits}
+                        onChange={(e) => updateNamingField('appendCounterDigits', Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </section>
 
         </>
       )}

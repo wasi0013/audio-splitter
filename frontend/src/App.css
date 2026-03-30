@@ -71,6 +71,104 @@ body {
   background: linear-gradient(135deg, #f8f9fb 0%, #eef2f9 100%);
 }
 
+/* ==========================================================================
+   Segment Naming Panel
+   ========================================================================== */
+
+.naming-section {
+  background: linear-gradient(135deg, #f8f9fb 0%, #eef2f9 100%);
+}
+
+.naming-section details {
+  cursor: pointer;
+}
+
+.naming-section summary {
+  font-size: 15px;
+  font-weight: 600;
+  color: #667eea;
+  outline: none;
+  padding: 8px 0;
+  user-select: none;
+}
+
+@media (hover: hover) {
+  .naming-section summary:hover {
+    color: #764ba2;
+  }
+}
+
+.naming-content {
+  margin-top: 16px;
+  padding: 16px;
+  background: white;
+  border-radius: 10px;
+  border-left: 4px solid #667eea;
+}
+
+.naming-preview {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.naming-preview code {
+  background: #e5e7eb;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.naming-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.naming-group h4 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.naming-group label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.naming-group input {
+  padding: 8px 10px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.naming-group input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.naming-group input[type="number"] {
+  max-width: 80px;
+}
+
 .tutorial-section details {
   cursor: pointer;
 }
@@ -770,6 +868,10 @@ h3 {
   .file-input-label {
     padding: 12px 20px;
     min-height: 44px;
+  }
+
+  .naming-fields {
+    grid-template-columns: 1fr;
   }
 
   .marker-time-input {
