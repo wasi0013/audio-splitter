@@ -698,11 +698,17 @@ h3 {
   display: block;
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 900px) {
   .markers-segments-columns {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    align-items: start;
     gap: 0;
+  }
+
+  .markers-segments-columns .markers-section,
+  .markers-segments-columns .segments-section {
+    min-height: 100%;
   }
 
   .markers-segments-columns .markers-section {

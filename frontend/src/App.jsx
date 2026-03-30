@@ -445,10 +445,12 @@ function App() {
                 className="audio-player"
               />
               <div className="seek-buttons">
+                <button onClick={() => handleSeek(-60)} className="btn btn-small btn-seek" title="Back 1 min">⏪ 1 min</button>
                 <button onClick={() => handleSeek(-30)} className="btn btn-small btn-seek" title="Back 30s">⏪ 30s</button>
                 <button onClick={() => handleSeek(-5)} className="btn btn-small btn-seek" title="Back 5s">⏪ 5s</button>
                 <button onClick={() => handleSeek(5)} className="btn btn-small btn-seek" title="Forward 5s">5s ⏩</button>
                 <button onClick={() => handleSeek(30)} className="btn btn-small btn-seek" title="Forward 30s">30s ⏩</button>
+                <button onClick={() => handleSeek(60)} className="btn btn-small btn-seek" title="Forward 1 min">1 min ⏩</button>
               </div>
               <div className="footer-buttons">
                 <button 
