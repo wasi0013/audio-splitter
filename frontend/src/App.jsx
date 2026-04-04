@@ -629,7 +629,7 @@ function App() {
                 <>
                   {/* First segment: 0 to first marker */}
                   <div className="segment-item">
-                    <span className="segment-label">Segment 000</span>
+                    <span className="segment-label" title={generateSegmentName(0)}>{generateSegmentName(0)}</span>
                     <span className="segment-time">0:00 → {formatTime(markers[0].time)}</span>
                     <button
                       onClick={() => handlePreviewSegment(0)}
@@ -646,7 +646,7 @@ function App() {
                     const endTime = markers[idx + 1].time
                     return (
                       <div key={`seg-${idx + 1}`} className="segment-item">
-                        <span className="segment-label">Segment {String(idx + 1).padStart(3, '0')}</span>
+                        <span className="segment-label" title={generateSegmentName(idx + 1)}>{generateSegmentName(idx + 1)}</span>
                         <span className="segment-time">{formatTime(startTime)} → {formatTime(endTime)}</span>
                         <button
                           onClick={() => handlePreviewSegment(idx + 1)}
@@ -660,7 +660,7 @@ function App() {
 
                   {/* Last segment */}
                   <div className="segment-item">
-                    <span className="segment-label">Segment {String(markers.length).padStart(3, '0')}</span>
+                    <span className="segment-label" title={generateSegmentName(markers.length)}>{generateSegmentName(markers.length)}</span>
                     <span className="segment-time">{formatTime(markers[markers.length - 1].time)} → End</span>
                     <button
                       onClick={() => handlePreviewSegment(markers.length)}
