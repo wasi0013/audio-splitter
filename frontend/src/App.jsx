@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Waveform } from './Waveform'
-import { initFFmpeg, splitAudio, isFFmpegReady } from './lib/ffmpegProcessor'
+import { initFFmpeg, splitAudio, extractSegment, isFFmpegReady } from './lib/ffmpegProcessor'
 import { createZipFromSegments, downloadFile } from './lib/zipUtils'
 import './App.css'
 
@@ -338,6 +338,38 @@ function App() {
     return parts.join('') + ext
   }
 
+  const [downloadingSegment, setDownloadingSegment] = useState(null)
+
+  const handleDownloadSegment = async (segmentIndex) => {
+    if (!audioFile || !ffmpegInitialized || downloadingSegment !== null) return
+
+    const sortedMarkers = markers.map(m => m.time).sort((a, b) => a - b)
+    let startTime, endTime
+
+    if (segmentIndex === 0) {
+      startTime = 0
+      endTime = sortedMarkers.length > 0 ? sortedMarkers[0] : null
+    } else if (segmentIndex < sortedMarkers.length) {
+      startTime = sortedMarkers[segmentIndex - 1]
+      endTime = sortedMarkers[segmentIndex]
+    } else {
+      startTime = sortedMarkers[segmentIndex - 1]
+      endTime = null
+    }
+
+    setDownloadingSegment(segmentIndex)
+    try {
+      const data = await extractSegment(audioFile, startTime, endTime)
+      const blob = new Blob([data.buffer], { type: 'audio/mpeg' })
+      downloadFile(blob, generateSegmentName(segmentIndex))
+    } catch (error) {
+      console.error('Download segment error:', error)
+      alert('Failed to download segment: ' + error.message)
+    } finally {
+      setDownloadingSegment(null)
+    }
+  }
+
   const updateNamingField = (field, value) => {
     setNamingConfig(prev => ({ ...prev, [field]: value }))
   }
@@ -637,6 +669,14 @@ function App() {
                     >
                       ▶ Preview
                     </button>
+                    <button
+                      onClick={() => handleDownloadSegment(0)}
+                      disabled={downloadingSegment !== null}
+                      className="btn btn-small btn-success"
+                      title="Download this segment"
+                    >
+                      {downloadingSegment === 0 ? '⏳' : '⬇'}
+                    </button>
                   </div>
 
                   {/* Middle segments */}
@@ -654,6 +694,14 @@ function App() {
                         >
                           ▶ Preview
                         </button>
+                        <button
+                          onClick={() => handleDownloadSegment(idx + 1)}
+                          disabled={downloadingSegment !== null}
+                          className="btn btn-small btn-success"
+                          title="Download this segment"
+                        >
+                          {downloadingSegment === idx + 1 ? '⏳' : '⬇'}
+                        </button>
                       </div>
                     )
                   })}
@@ -667,6 +715,14 @@ function App() {
                       className="btn btn-small btn-info"
                     >
                       ▶ Preview
+                    </button>
+                    <button
+                      onClick={() => handleDownloadSegment(markers.length)}
+                      disabled={downloadingSegment !== null}
+                      className="btn btn-small btn-success"
+                      title="Download this segment"
+                    >
+                      {downloadingSegment === markers.length ? '⏳' : '⬇'}
                     </button>
                   </div>
                 </>

@@ -146,6 +146,38 @@ export async function splitAudio(audioFile, markers, onProgress = null) {
 }
 
 /**
+ * Extract a single segment from an audio file
+ * @param {File} audioFile - Input audio file
+ * @param {number} startTime - Start time in seconds
+ * @param {number|null} endTime - End time in seconds (null for until end)
+ * @returns {Promise<Uint8Array>} Segment audio data
+ */
+export async function extractSegment(audioFile, startTime, endTime) {
+  if (!ffmpegReady || !ffmpeg) {
+    throw new Error('FFmpeg not initialized. Call initFFmpeg first.')
+  }
+
+  const inputName = `input_${Date.now()}.mp3`
+  const outputName = `segment_${Date.now()}.mp3`
+
+  await ffmpeg.writeFile(inputName, await fetchFile(audioFile))
+
+  const args = ['-i', inputName, '-ss', String(startTime)]
+  if (endTime !== null) {
+    args.push('-to', String(endTime))
+  }
+  args.push('-c', 'copy', '-y', outputName)
+
+  await ffmpeg.exec(args)
+
+  const data = await ffmpeg.readFile(outputName)
+  await ffmpeg.deleteFile(outputName)
+  await ffmpeg.deleteFile(inputName)
+
+  return data
+}
+
+/**
  * Check if FFmpeg is initialized and ready
  * @returns {boolean}
  */
