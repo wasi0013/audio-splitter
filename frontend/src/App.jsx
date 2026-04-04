@@ -405,6 +405,48 @@ function App() {
     }
   }
 
+  const handleExportTimestamps = () => {
+    if (markers.length === 0) return
+    const data = { markers: markers.map(m => ({ time: m.time })) }
+    const json = JSON.stringify(data, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const baseName = audioFile ? audioFile.name.replace(/\.[^.]+$/, '') : 'timestamps'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${baseName}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImportTimestamps = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result)
+        if (data.markers && Array.isArray(data.markers)) {
+          const imported = data.markers
+            .filter(m => typeof m.time === 'number' && m.time >= 0)
+            .map(m => ({ id: Date.now() + Math.random(), time: m.time }))
+            .sort((a, b) => a.time - b.time)
+          if (imported.length > 0) {
+            setMarkers(imported)
+          } else {
+            alert('No valid timestamps found in the file.')
+          }
+        } else {
+          alert('Invalid timestamp file format.')
+        }
+      } catch {
+        alert('Failed to parse JSON file.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -527,7 +569,28 @@ function App() {
 
           <div className="markers-segments-columns">
           <section className="markers-section">
-            <h3>Markers ({markers.length})</h3>
+            <div className="markers-header">
+              <h3>Markers ({markers.length})</h3>
+              <div className="markers-actions">
+                <button
+                  onClick={handleExportTimestamps}
+                  disabled={markers.length === 0}
+                  className="btn btn-small btn-info"
+                  title="Export timestamps to JSON"
+                >
+                  ⬇ Export
+                </button>
+                <label className="btn btn-small btn-info import-label" title="Import timestamps from JSON">
+                  ⬆ Import
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportTimestamps}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+            </div>
             {markers.length === 0 ? (
               <p className="empty-state">No markers yet. Click audio timeline or use Add Marker button.</p>
             ) : (
