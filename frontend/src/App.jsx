@@ -10,6 +10,7 @@ function App() {
   const [markers, setMarkers] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [previewSegment, setPreviewSegment] = useState(null)
+  const [audioDuration, setAudioDuration] = useState(0)
   const [ffmpegStatus, setFFmpegStatus] = useState('Loading FFmpeg...')
   const [ffmpegInitialized, setFFmpegInitialized] = useState(false)
   const [progress, setProgress] = useState(null)
@@ -130,6 +131,7 @@ function App() {
 
       // Clear preview state
       setPreviewSegment(null)
+      setAudioDuration(0)
 
       // Load new file (old blob URL will be revoked automatically by useEffect)
       const nextUrl = URL.createObjectURL(file)
@@ -376,9 +378,19 @@ function App() {
 
   const formatTime = (seconds) => {
     if (!seconds) return '0:00'
-    const mins = Math.floor(seconds / 60)
+    const hrs = Math.floor(seconds / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
     const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
+    const ss = secs.toString().padStart(2, '0')
+    return hrs ? `${hrs}:${mins.toString().padStart(2, '0')}:${ss}` : `${mins}:${ss}`
+  }
+
+  const formatDuration = (seconds) => {
+    const total = Math.round(seconds)
+    const mins = Math.floor(total / 60)
+    const secs = total % 60
+    if (!mins) return `${secs}s`
+    return secs ? `${mins}m ${secs}s` : `${mins}m`
   }
 
   const formatTimeForInput = (seconds) => {
@@ -506,6 +518,7 @@ function App() {
     <div className="container">
       <header className="header">
         <h1>Audio Splitter</h1>
+        <a href="/player" className="player-link">▶ Recitation Player</a>
         <p className="subtitle">Load audio file (MP3, WAV, OGG, FLAC, AAC, M4A), place markers, split into segments</p>
         <div className="ffmpeg-status">
           {ffmpegInitialized ? (
@@ -558,6 +571,7 @@ function App() {
                 ref={audioRef}
                 controls
                 src={audioUrl}
+                onLoadedMetadata={(e) => setAudioDuration(e.currentTarget.duration || 0)}
                 className="audio-player"
               />
               <div className="seek-buttons">
@@ -658,74 +672,32 @@ function App() {
               {markers.length === 0 ? (
                 <p className="empty-state">Add markers to see segments</p>
               ) : (
-                <>
-                  {/* First segment: 0 to first marker */}
-                  <div className="segment-item">
-                    <span className="segment-label" title={generateSegmentName(0)}>{generateSegmentName(0)}</span>
-                    <span className="segment-time">0:00 → {formatTime(markers[0].time)}</span>
-                    <button
-                      onClick={() => handlePreviewSegment(0)}
-                      className="btn btn-small btn-info"
-                    >
-                      ▶ Preview
-                    </button>
-                    <button
-                      onClick={() => handleDownloadSegment(0)}
-                      disabled={downloadingSegment !== null}
-                      className="btn btn-small btn-success"
-                      title="Download this segment"
-                    >
-                      {downloadingSegment === 0 ? '⏳' : '⬇'}
-                    </button>
-                  </div>
-
-                  {/* Middle segments */}
-                  {markers.map((marker, idx) => {
-                    if (idx === markers.length - 1) return null // Skip last, it's handled below
-                    const startTime = marker.time
-                    const endTime = markers[idx + 1].time
-                    return (
-                      <div key={`seg-${idx + 1}`} className="segment-item">
-                        <span className="segment-label" title={generateSegmentName(idx + 1)}>{generateSegmentName(idx + 1)}</span>
-                        <span className="segment-time">{formatTime(startTime)} → {formatTime(endTime)}</span>
-                        <button
-                          onClick={() => handlePreviewSegment(idx + 1)}
-                          className="btn btn-small btn-info"
-                        >
-                          ▶ Preview
-                        </button>
-                        <button
-                          onClick={() => handleDownloadSegment(idx + 1)}
-                          disabled={downloadingSegment !== null}
-                          className="btn btn-small btn-success"
-                          title="Download this segment"
-                        >
-                          {downloadingSegment === idx + 1 ? '⏳' : '⬇'}
-                        </button>
-                      </div>
-                    )
-                  })}
-
-                  {/* Last segment */}
-                  <div className="segment-item">
-                    <span className="segment-label" title={generateSegmentName(markers.length)}>{generateSegmentName(markers.length)}</span>
-                    <span className="segment-time">{formatTime(markers[markers.length - 1].time)} → End</span>
-                    <button
-                      onClick={() => handlePreviewSegment(markers.length)}
-                      className="btn btn-small btn-info"
-                    >
-                      ▶ Preview
-                    </button>
-                    <button
-                      onClick={() => handleDownloadSegment(markers.length)}
-                      disabled={downloadingSegment !== null}
-                      className="btn btn-small btn-success"
-                      title="Download this segment"
-                    >
-                      {downloadingSegment === markers.length ? '⏳' : '⬇'}
-                    </button>
-                  </div>
-                </>
+                [0, ...markers.map(m => m.time)].map((startTime, idx) => {
+                  const endTime = idx < markers.length ? markers[idx].time : audioDuration
+                  return (
+                    <div key={`seg-${idx}`} className="segment-item">
+                      <span className="segment-label" title={generateSegmentName(idx)}>{generateSegmentName(idx)}</span>
+                      <span className="segment-time">
+                        {formatTime(startTime)} → {endTime ? formatTime(endTime) : 'End'}
+                        {endTime > startTime && <span className="segment-duration"> ({formatDuration(endTime - startTime)})</span>}
+                      </span>
+                      <button
+                        onClick={() => handlePreviewSegment(idx)}
+                        className="btn btn-small btn-info"
+                      >
+                        ▶ Preview
+                      </button>
+                      <button
+                        onClick={() => handleDownloadSegment(idx)}
+                        disabled={downloadingSegment !== null}
+                        className="btn btn-small btn-success"
+                        title="Download this segment"
+                      >
+                        {downloadingSegment === idx ? '⏳' : '⬇'}
+                      </button>
+                    </div>
+                  )
+                })
               )}
             </div>
             {previewSegment && (

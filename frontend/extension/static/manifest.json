@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Recitation Player",
+  "version": "0.1.0",
+  "description": "Listen to Quran recitation by surah or chunk (rak'ah, page…) with loops, repeats and a remote control.",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "Recitation Player",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png" }
+  },
+  "background": { "service_worker": "background.js" },
+  "commands": {
+    "toggle": { "suggested_key": { "default": "Alt+Shift+P" }, "description": "Play / pause" },
+    "nextChunk": { "suggested_key": { "default": "Alt+Shift+Down" }, "description": "Next chunk" },
+    "prevChunk": { "suggested_key": { "default": "Alt+Shift+Up" }, "description": "Previous chunk (or restart current)" },
+    "loopChunk": { "suggested_key": { "default": "Alt+Shift+L" }, "description": "Loop current chunk on/off" },
+    "nextSurah": { "description": "Next surah" },
+    "prevSurah": { "description": "Previous surah" },
+    "openPlayer": { "description": "Open / focus the player tab" }
+  }
+}

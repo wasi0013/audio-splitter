@@ -32,3 +32,6 @@ output/
 # DO NOT REMOVE THE BELOW
 quran-recitation-alafasy/
 .agent/
+
+# Chrome extension build
+frontend/dist-extension/

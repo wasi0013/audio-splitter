@@ -649,6 +649,11 @@ section:last-child {
   font-size: 13px;
 }
 
+.segment-duration {
+  color: #111827;
+  font-weight: 700;
+}
+
 .preview-info {
   padding: 12px 16px;
   background: linear-gradient(135deg, rgba(2, 132, 199, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
@@ -1071,3 +1076,15 @@ h3 {
   }
 }
 
+
+.player-link {
+  display: inline-block;
+  margin: 6px 0;
+  font-weight: 600;
+  color: #0284c7;
+  text-decoration: none;
+}
+
+.player-link:hover {
+  text-decoration: underline;
+}
