@@ -153,6 +153,45 @@ function Wave({ env, upTo, total, from, to, past }) {
   return <canvas ref={ref} className="pl-wave" aria-hidden="true" />
 }
 
+// Thin progress line across the top of the player bar: position inside the current unit. Click or drag to seek
+// (seeks on release; the fill and a time bubble follow the pointer while dragging). Arrow keys are handled globally.
+export function Scrubber({ start, len, pos, onSeek, label }) {
+  const ref = useRef(null)
+  const [drag, setDrag] = useState(null)    // seconds into the unit while dragging
+  const [hover, setHover] = useState(null)  // { x, t, w }
+  const ok = len > 0
+  const at = (e) => {
+    const r = ref.current.getBoundingClientRect()
+    const x = Math.min(Math.max(e.clientX - r.left, 0), r.width)
+    return { x, t: r.width ? (x / r.width) * len : 0, w: r.width }
+  }
+  const shown = drag ?? pos
+  const pct = ok ? Math.min(100, Math.max(0, (shown / len) * 100)) : 0
+  const tip = drag != null ? { ...hover, t: drag } : hover
+  return (
+    <div
+      ref={ref}
+      className={`pl-bar-progress${ok ? '' : ' off'}${drag != null ? ' dragging' : ''}`}
+      role="slider"
+      tabIndex={ok ? 0 : -1}
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={Math.round(len || 0)}
+      aria-valuenow={Math.round(shown || 0)}
+      aria-valuetext={ok ? `${fmt(shown)} of ${fmt(len)}` : undefined}
+      onPointerDown={(e) => { if (!ok || e.button > 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); const h = at(e); setHover(h); setDrag(h.t) }}
+      onPointerMove={(e) => { if (!ok) return; const h = at(e); setHover(h); if (drag != null) setDrag(h.t) }}
+      onPointerUp={(e) => { if (drag == null) return; const t = at(e).t; setDrag(null); if (e.pointerType !== 'mouse') setHover(null); onSeek(start + Math.min(t, Math.max(0, len - 0.05))) }}
+      onPointerCancel={() => { setDrag(null); setHover(null) }}
+      onPointerLeave={() => { if (drag == null) setHover(null) }}
+    >
+      <div className="pl-bar-track"><div className="pl-bar-fill" style={{ width: `${pct}%` }} /></div>
+      {ok && <div className="pl-bar-thumb" style={{ left: `${pct}%` }} />}
+      {ok && tip && <div className="pl-bar-tip" style={{ left: Math.min(Math.max(tip.x, 28), tip.w - 28) }}>{fmt(tip.t)}</div>}
+    </div>
+  )
+}
+
 // Surah map: one band per unit (width ∝ duration), hover tooltip, click / drag to seek, progress inside the current band.
 export function Timeline({ chunks, total, time, ci, range, busy, unitName, starts, onSeek, wave }) {
   const bar = useRef(null)

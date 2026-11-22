@@ -273,8 +273,25 @@ body:has(.pl-shell) { background: var(--pl-bg); padding: 0; margin: 0; }
 
 /* ---------- player bar ---------- */
 .pl-bar { position: relative; z-index: 10; background: var(--pl-surface); border-top: 1px solid var(--pl-line); box-shadow: 0 -6px 24px rgba(0, 0, 0, .06); }
-.pl-bar-progress { height: 3px; background: var(--pl-line); }
-.pl-bar-progress div { height: 100%; background: var(--pl-accent); transition: width .25s linear; }
+.pl-bar-progress { position: relative; height: 3px; cursor: pointer; touch-action: none; outline: none; }
+.pl-bar-progress.off { cursor: default; }
+.pl-bar-progress::before { content: ''; position: absolute; left: 0; right: 0; top: -8px; bottom: -6px; }   /* bigger hit area */
+.pl-bar-track { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--pl-line); transition: height .12s; }
+.pl-bar-fill { height: 100%; background: var(--pl-accent); transition: width .25s linear; }
+.pl-bar-progress.dragging .pl-bar-fill { transition: none; }
+.pl-bar-thumb {
+  position: absolute; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--pl-accent);
+  border: 2px solid var(--pl-surface); box-shadow: 0 1px 4px rgba(0, 0, 0, .25); pointer-events: none;
+  transform: translate(-50%, -50%) scale(0); transition: transform .12s, left .25s linear;
+}
+.pl-bar-progress.dragging .pl-bar-thumb { transition: transform .12s; }
+.pl-bar-progress:not(.off):hover .pl-bar-track, .pl-bar-progress.dragging .pl-bar-track, .pl-bar-progress:focus-visible .pl-bar-track { height: 5px; }
+.pl-bar-progress:not(.off):hover .pl-bar-thumb, .pl-bar-progress.dragging .pl-bar-thumb, .pl-bar-progress:focus-visible .pl-bar-thumb { transform: translate(-50%, -50%) scale(1); }
+.pl-bar-tip {
+  position: absolute; bottom: calc(100% + 10px); transform: translateX(-50%); pointer-events: none; z-index: 5;
+  padding: 3px 8px; border-radius: var(--pl-r-sm); background: var(--pl-text); color: var(--pl-surface);
+  font-size: 12px; font-variant-numeric: tabular-nums; box-shadow: var(--pl-shadow-pop); white-space: nowrap;
+}
 .pl-bar-inner {
   display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: "np transport opts";
   align-items: center; gap: 16px; padding: 10px clamp(12px, 2.5vw, 28px); max-width: 1440px; margin: 0 auto;

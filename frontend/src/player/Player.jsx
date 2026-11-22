@@ -3,7 +3,7 @@ import { Engine } from './engine'
 import { SURAHS, matchSurahs, buildChunks, canPickFolders, loadConfig, saveConfig, openLibrary, permissionState, pickFolder } from './library'
 import { estimateDuration, estimateDurationUrl } from './mp3Index'
 import { computeEnvelope } from './waveform'
-import { fmt, fmtDur, Popover, Choice, Dialog, Timeline, useToast } from './ui'
+import { fmt, fmtDur, Popover, Choice, Dialog, Timeline, Scrubber, useToast } from './ui'
 import * as I from './icons'
 import './player.css'
 
@@ -688,7 +688,7 @@ export default function Player({ embedded = null }) {
       </div>
 
       <footer className="pl-bar" aria-label="Player">
-        <div className="pl-bar-progress" aria-hidden="true"><div style={{ width: chunkLen ? `${Math.min(100, (chunkPos / chunkLen) * 100)}%` : 0 }} /></div>
+        <Scrubber start={chunk?.start ?? 0} len={chunkLen} pos={chunkPos} label={`Position in ${multi ? UN[0].toLowerCase() : 'surah'}`} onSeek={(t) => A.current.seekTo(t)} />
         <div className="pl-bar-inner">
           <div className="pl-np">
             <div className="pl-np-title">{info.tr}<span className="pl-np-ar" lang="ar">{info.ar}</span></div>
