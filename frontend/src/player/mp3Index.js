@@ -112,11 +112,42 @@ export async function buildIndex(blob) {
 
 // quick duration estimate from the first frame only (for the surah list)
 export async function estimateDuration(blob) {
-  const head = await bytes(blob, 0, 64 * 1024)
+  let head = await bytes(blob, 0, 64 * 1024)
   const skip = id3Size(head)
-  const b = skip + 8192 > head.length ? await bytes(blob, skip, skip + 8192) : head.subarray(skip)
+  if (skip + 8192 > head.length) head = await bytes(blob, 0, skip + 8192)   // big ID3 tag (cover art)
+  return estimateFromHead(head, blob.size)
+}
+
+function estimateFromHead(head, size) {
+  const skip = id3Size(head)
+  if (skip + 1024 > head.length) return null
+  const b = head.subarray(skip)
   const i = findSync(b)
   if (i < 0) return null
   const h = parseHeader(b, i)
-  return tagAt(b, i, h) === 'Xing' ? null : ((blob.size - skip) * 8) / h.bitrate
+  return tagAt(b, i, h) === 'Xing' ? null : ((size - skip) * 8) / h.bitrate
+}
+
+// same estimate for a file on an http server: HEAD for the size, then only the first ~64 KB of a GET
+// (the stream is cancelled, so servers that ignore Range don't send the whole file)
+export async function estimateDurationUrl(base, n) {
+  const url = base.replace(/\/+$/, '') + '/' + String(n).padStart(3, '0') + '.mp3'
+  const hd = await fetch(url, { method: 'HEAD' })
+  const size = +hd.headers.get('content-length')
+  if (!hd.ok || !size) return null
+  const ctl = new AbortController()
+  const r = await fetch(url, { headers: { Range: 'bytes=0-65535' }, signal: ctl.signal })
+  const reader = r.body.getReader()
+  const parts = []
+  let got = 0
+  while (got < 64 * 1024) {
+    const { done, value } = await reader.read()
+    if (done) break
+    parts.push(value); got += value.length
+  }
+  ctl.abort()
+  const head = new Uint8Array(got)
+  let o = 0
+  for (const v of parts) { head.set(v, o); o += v.length }
+  return estimateFromHead(head, size)
 }
