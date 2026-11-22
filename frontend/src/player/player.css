@@ -210,6 +210,17 @@ body:has(.pl-shell) { background: var(--pl-bg); padding: 0; margin: 0; }
 .pl-timeline-wrap.busy .pl-band { opacity: .6; }
 @keyframes pl-shimmer { to { background-position: -200% 0; } }
 
+/* waveform mode: bands become quiet columns, the curve sits above them, numbers in a strip along the bottom */
+.pl-timeline.has-wave { height: 72px; background: transparent; }
+.pl-timeline.has-wave .pl-band { background: transparent; align-items: flex-end; padding-bottom: 1px; font-size: 10px; border-right: 1px solid var(--pl-line); }
+.pl-timeline.has-wave .pl-band.last { border-right: 0; }
+.pl-timeline.has-wave .pl-band:nth-child(even) { background: color-mix(in srgb, var(--pl-band) 45%, transparent); }
+.pl-timeline.has-wave .pl-band.current { background: color-mix(in srgb, var(--pl-accent) 12%, transparent); color: var(--pl-accent-text); }
+.pl-timeline.has-wave .pl-band.range { background: var(--pl-range); }
+.pl-timeline.has-wave .pl-band-fill { top: auto; height: 3px; opacity: .9; }
+.pl-timeline.has-wave:hover .pl-band { filter: none; }
+.pl-wave { position: absolute; left: 0; right: 0; top: 4px; bottom: 16px; width: 100%; height: calc(100% - 20px); pointer-events: none; }
+
 /* ---------- unit list ---------- */
 .pl-list { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow: hidden; }
 .pl-list-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 18px 10px; border-bottom: 1px solid var(--pl-line); }

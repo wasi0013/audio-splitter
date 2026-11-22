@@ -80,8 +80,81 @@ export function useToast() {
   return [node, show]
 }
 
+// Sine-style loudness curve of the whole surah: y = loudness(x) · sin(2πx/λ). Thin and muted everywhere, bold accent
+// over the current unit; not-yet-decoded part is a dashed baseline. Redrawn only when the unit, size, data or theme
+// change — the play head is a DOM element, so time updates never touch the canvas.
+const WAVELEN = 10   // px per sine period, constant at any width
+function Wave({ env, upTo, total, from, to, past }) {
+  const ref = useRef(null)
+  const [size, setSize] = useState(null)
+  const [scheme, setScheme] = useState(0)
+  useEffect(() => {
+    const c = ref.current
+    const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }))
+    ro.observe(c)
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const ch = () => setScheme((x) => x + 1)
+    mq.addEventListener('change', ch)
+    return () => { ro.disconnect(); mq.removeEventListener('change', ch) }
+  }, [])
+  useEffect(() => {
+    const c = ref.current
+    if (!c || !size || !size.w || !env || !total) return
+    const dpr = window.devicePixelRatio || 1
+    c.width = Math.round(size.w * dpr); c.height = Math.round(size.h * dpr)
+    const g = c.getContext('2d')
+    g.setTransform(dpr, 0, 0, dpr, 0, 0)
+    g.clearRect(0, 0, size.w, size.h)
+    const css = getComputedStyle(c)
+    const col = (v) => css.getPropertyValue(v).trim()
+    const W = size.w, mid = size.h / 2, amp = size.h / 2 - 3
+    const n = env.length, perPx = n / W
+    const doneX = Math.min(W, (upTo / total) * W)
+    // mean loudness under each pixel, lightly smoothed, then stretched between the surah's 5th and 98th
+    // percentile so swells and pauses stay visible even when one pixel covers several seconds
+    const P = Math.ceil(W) + 1, lv = new Float32Array(P)
+    for (let x = 0; x < P; x++) {
+      const a = x * perPx
+      if (perPx < 1) {
+        const i = Math.min(n - 1, Math.floor(a)), f = a - i
+        lv[x] = (env[i] * (1 - f) + env[Math.min(n - 1, i + 1)] * f) / 255
+      } else {
+        let sum = 0, c = 0
+        for (let i = Math.floor(a); i < Math.min(n, Math.ceil(a + perPx)); i++) { sum += env[i]; c++ }
+        lv[x] = c ? sum / c / 255 : 0
+      }
+    }
+    const sm = lv.map((_, x) => (lv[Math.max(0, x - 1)] + 2 * lv[x] + lv[Math.min(P - 1, x + 1)]) / 4)
+    const done = Array.from(sm.slice(0, Math.max(1, Math.floor(doneX)))).sort((p, q) => p - q)
+    const lo = done[Math.floor(done.length * 0.05)] ?? 0, hi = done[Math.floor(done.length * 0.98)] ?? 1
+    const ys = new Float32Array(P)
+    for (let x = 0; x < P; x++) {
+      const v = sm[x] < 0.04 ? 0 : Math.min(1, Math.max(0, (sm[x] - lo) / Math.max(0.05, hi - lo)))
+      const a = sm[x] < 0.04 ? 0 : 0.12 + 0.88 * Math.pow(v, 1.4)
+      ys[x] = mid - amp * a * Math.sin((2 * Math.PI * x) / WAVELEN)
+    }
+    const stroke = (x0, x1, color, width, alpha = 1) => {
+      x0 = Math.max(0, Math.floor(x0)); x1 = Math.min(Math.floor(doneX), Math.ceil(x1))
+      if (x1 <= x0) return
+      g.beginPath(); g.moveTo(x0, ys[x0])
+      for (let x = x0 + 1; x <= x1; x++) g.lineTo(x, ys[x])
+      g.strokeStyle = color; g.lineWidth = width; g.globalAlpha = alpha; g.lineJoin = 'round'; g.lineCap = 'round'
+      g.stroke(); g.globalAlpha = 1
+    }
+    const x0 = (from / total) * W, x1 = (to / total) * W, xp = (past / total) * W
+    stroke(0, xp, col('--pl-text'), 1.1, 0.42)          // already played
+    stroke(xp, W, col('--pl-muted'), 1.1, 0.4)          // still to come
+    stroke(x0, x1, col('--pl-accent'), 2.4)             // current unit, bold
+    if (doneX < W) {                                    // still decoding
+      g.setLineDash([3, 4]); g.beginPath(); g.moveTo(doneX, mid); g.lineTo(W, mid)
+      g.strokeStyle = col('--pl-muted'); g.globalAlpha = 0.5; g.lineWidth = 1; g.stroke(); g.setLineDash([]); g.globalAlpha = 1
+    }
+  }, [env, upTo, total, from, to, past, size, scheme])
+  return <canvas ref={ref} className="pl-wave" aria-hidden="true" />
+}
+
 // Surah map: one band per unit (width ∝ duration), hover tooltip, click / drag to seek, progress inside the current band.
-export function Timeline({ chunks, total, time, ci, range, busy, unitName, starts, onSeek }) {
+export function Timeline({ chunks, total, time, ci, range, busy, unitName, starts, onSeek, wave }) {
   const bar = useRef(null)
   const [hover, setHover] = useState(null)   // { x, t, i }
   const [drag, setDrag] = useState(null)     // t while dragging
@@ -98,11 +171,12 @@ export function Timeline({ chunks, total, time, ci, range, busy, unitName, start
   const cur = chunks[ci]
   const curEnd = cur ? (cur.end ?? total) : null
   const label = (i) => chunks[i]?.label || `${unitName} ${i + 1}`
+  const hasWave = !!(wave?.env && ready)
   return (
     <div className={`pl-timeline-wrap${busy ? ' busy' : ''}`}>
       <div
         ref={bar}
-        className={`pl-timeline${ready ? '' : ' unknown'}`}
+        className={`pl-timeline${ready ? '' : ' unknown'}${hasWave ? ' has-wave' : ''}`}
         role="slider"
         tabIndex={0}
         aria-label="Position in surah"
@@ -128,6 +202,7 @@ export function Timeline({ chunks, total, time, ci, range, busy, unitName, start
             </div>
           )
         })}
+        {hasWave && <Wave env={wave.env} upTo={wave.upTo} total={total} from={cur?.start ?? 0} to={curEnd ?? total} past={cur?.start ?? 0} />}
         {ready && <div className="pl-head" style={{ left: `${Math.min(100, (shown / total) * 100)}%` }} />}
         {hover && ready && (
           <div className="pl-tip" style={{ left: Math.min(Math.max(hover.x, 90), hover.w - 90) }}>

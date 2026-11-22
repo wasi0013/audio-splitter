@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Engine } from './engine'
 import { SURAHS, matchSurahs, buildChunks, canPickFolders, loadConfig, saveConfig, openLibrary, permissionState, pickFolder } from './library'
 import { estimateDuration, estimateDurationUrl } from './mp3Index'
+import { computeEnvelope } from './waveform'
 import { fmt, fmtDur, Popover, Choice, Dialog, Timeline, useToast } from './ui'
 import * as I from './icons'
 import './player.css'
@@ -225,6 +226,22 @@ export default function Player({ embedded = null }) {
   }, [engine, go])
 
   useEffect(() => () => { engine.pause() }, [engine])
+
+  // loudness curve for the timeline: computed from the blob the engine already holds (never a second download)
+  const [wave, setWave] = useState(null)                       // { surah, env, upTo }
+  const waveFor = useRef(null)
+  useEffect(() => engine.on('unit', () => {
+    const n = engine.unit?.surah, f = engine.files.get(n)
+    if (!f?.index || waveFor.current === n) return
+    waveFor.current = n
+    setWave(null)
+    const stale = () => waveFor.current !== n
+    computeEnvelope(n, f.blob, f.index, {
+      isStale: stale,
+      onProgress: (env, upTo) => { if (!stale()) setWave({ surah: n, env, upTo }) },
+    }).then((r) => { if (r && !stale()) setWave({ surah: n, env: r.env, upTo: f.index.duration }) })
+      .catch(() => {})
+  }), [engine])
   useEffect(() => { playsRef.current = 0 }, [repeat])
 
   // changing loop mode / stop-after / range rebuilds the unit around the current position
@@ -597,7 +614,8 @@ export default function Player({ embedded = null }) {
               {chunkLen != null && <span className="pl-muted pl-tabular">{fmt(chunkPos)} / {fmt(chunkLen)}</span>}
             </div>
             <Timeline chunks={chunks} total={total} time={time} ci={ci} range={loop === 'range' ? range : null} busy={busy}
-              unitName={UN[0]} starts={opening} onSeek={(t) => A.current.seekTo(t)} />
+              unitName={UN[0]} starts={opening} onSeek={(t) => A.current.seekTo(t)}
+              wave={wave?.surah === surah ? wave : null} />
             {error && <p className="pl-error" role="alert">{error}</p>}
           </section>
 
