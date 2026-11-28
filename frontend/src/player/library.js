@@ -46,12 +46,22 @@ export async function pickFolder(id) {
   return window.showDirectoryPicker({ id, mode: 'read' })
 }
 
-// 'granted' | 'prompt' | 'denied' for every folder handle in the config
+// A stored folder handle can stop answering (folder moved, drive unmounted, Chrome's file-access
+// backend stuck): its promises then never settle. Bound every call so the page can't hang on one.
+export class FolderTimeout extends Error {}
+const within = (p, ms, what) => Promise.race([
+  p,
+  new Promise((_, reject) => setTimeout(() => reject(new FolderTimeout(`${what} did not respond`)), ms)),
+])
+
+// 'granted' | 'prompt' | 'denied' | 'unavailable' for every folder handle in the config
 export async function permissionState(cfg, request = false) {
-  const handles = [cfg.audio, ...cfg.layers].filter((x) => x.kind === 'dir').map((x) => x.handle)
+  const handles = [cfg.audio, ...cfg.layers].filter((x) => x?.kind === 'dir').map((x) => x.handle)
   let state = 'granted'
   for (const h of handles) {
-    let s = await h.queryPermission({ mode: 'read' })
+    let s
+    try { s = await within(h.queryPermission({ mode: 'read' }), 3000, `Folder “${h.name}”`) } catch { return 'unavailable' }
+    // no timeout here: the prompt waits for the user
     if (s !== 'granted' && request) s = await h.requestPermission({ mode: 'read' })
     if (s !== 'granted') state = s
   }
@@ -60,10 +70,12 @@ export async function permissionState(cfg, request = false) {
 
 async function listDir(handle, re) {
   const out = new Map()
-  for await (const [name, entry] of handle.entries()) {
-    const m = entry.kind === 'file' && name.match(re)
-    if (m) out.set(parseInt(m[1], 10), entry)
-  }
+  await within((async () => {
+    for await (const [name, entry] of handle.entries()) {
+      const m = entry.kind === 'file' && name.match(re)
+      if (m) out.set(parseInt(m[1], 10), entry)
+    }
+  })(), 15000, `Folder “${handle.name}”`)
   return out
 }
 
@@ -102,7 +114,7 @@ export async function openLibrary(cfg) {
     const markers = new Map()
     if (l.kind === 'dir') {
       for (const [n, entry] of await listDir(l.handle, MARKER_RE)) {
-        try { markers.set(n, parseMarkers(await (await entry.getFile()).text())) } catch { /* skip bad file */ }
+        try { markers.set(n, parseMarkers(await (await within(entry.getFile(), 5000, entry.name)).text())) } catch { /* skip bad or unreadable file */ }
       }
     } else {
       await Promise.all(SURAHS.map(async ({ n }) => {

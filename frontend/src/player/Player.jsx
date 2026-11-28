@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Engine } from './engine'
-import { SURAHS, matchSurahs, buildChunks, canPickFolders, loadConfig, saveConfig, openLibrary, permissionState, pickFolder } from './library'
+import { SURAHS, matchSurahs, buildChunks, canPickFolders, loadConfig, saveConfig, openLibrary, permissionState, pickFolder, FolderTimeout } from './library'
 import { estimateDuration, estimateDurationUrl } from './mp3Index'
 import { computeEnvelope } from './waveform'
 import { fmt, fmtDur, Popover, Choice, Dialog, Timeline, Scrubber, useToast } from './ui'
@@ -293,9 +293,18 @@ export default function Player({ embedded = null }) {
         Promise.all([worker(), worker(), worker(), worker()])
       }
     } catch (e) {
+      if (e instanceof FolderTimeout) { foldersUnavailable(c); return }
       setError(e.message); setStatus('setup')
     }
-  }, [layer])
+  }, [layer]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // saved folders that no longer answer: forget them and ask for them again (URL sources are kept)
+  const foldersUnavailable = (c) => {
+    const names = [c.audio, ...(c.layers || [])].filter((x) => x?.kind === 'dir').map((x) => `“${x.handle.name}”`)
+    setCfg({ ...c, audio: c.audio?.kind === 'dir' ? null : c.audio, layers: (c.layers || []).filter((x) => x.kind !== 'dir') })
+    setError(`Couldn’t open your saved folder${names.length > 1 ? 's' : ''} ${names.join(' and ')}. If ${names.length > 1 ? 'they were' : 'it was'} moved or ${names.length > 1 ? 'are' : 'is'} on a drive that isn’t connected, fix that and reload, or choose the folder${names.length > 1 ? 's' : ''} again.`)
+    setStatus('setup')
+  }
 
   useEffect(() => {
     (async () => {
@@ -307,9 +316,11 @@ export default function Player({ embedded = null }) {
       } else c = await loadConfig()
       if (!c?.audio) { setStatus('setup'); setCfg(c); return }
       setCfg(c)
-      if ((await permissionState(c)) !== 'granted') { setStatus('reconnect'); return }
+      const perm = await permissionState(c)
+      if (perm === 'unavailable') { foldersUnavailable(c); return }
+      if (perm !== 'granted') { setStatus('reconnect'); return }
       openIt(c)
-    })()
+    })().catch((e) => { setError(e.message); setStatus('setup') })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // restore last position (paused) once the library is open
@@ -337,7 +348,9 @@ export default function Player({ embedded = null }) {
   }
   const removeLayer = (i) => updateCfg({ ...cfg, layers: cfg.layers.filter((_, k) => k !== i) })
   const reconnect = async () => {
-    if ((await permissionState(cfg, true)) === 'granted') openIt(cfg)
+    const perm = await permissionState(cfg, true).catch(() => 'unavailable')
+    if (perm === 'granted') openIt(cfg)
+    else if (perm === 'unavailable') foldersUnavailable(cfg)
   }
   const useUrls = () => {
     if (!urlForm.audio.trim()) return
